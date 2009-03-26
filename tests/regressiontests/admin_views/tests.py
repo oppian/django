@@ -180,6 +180,11 @@ class AdminViewBasicTest(TestCase):
         self.assertRedirects(response, '/test_admin/%s/admin_views/thing/?e=1' % self.urlbit)
         response = self.client.get('/test_admin/%s/admin_views/thing/' % self.urlbit, {'color__id__exact': 'StringNotInteger!'})
         self.assertRedirects(response, '/test_admin/%s/admin_views/thing/?e=1' % self.urlbit)
+    
+    def testLogoutAndPasswordChangeURLs(self):
+        response = self.client.get('/test_admin/%s/admin_views/article/' % self.urlbit)
+        self.failIf('<a href="/test_admin/%s/logout/">' % self.urlbit not in response.content)
+        self.failIf('<a href="/test_admin/%s/password_change/">' % self.urlbit not in response.content) 
 
 class CustomModelAdminTest(AdminViewBasicTest):
     urlbit = "admin2"

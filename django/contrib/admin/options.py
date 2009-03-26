@@ -233,13 +233,13 @@ class ModelAdmin(BaseModelAdmin):
             url(r'^add/$',
                 wrap(self.add_view),
                 name='%sadmin_%s_%s_add' % info),
-            url(r'^(.+)/history/$',
+            url(r'^(?P<object_id>.+)/history/$',
                 wrap(self.history_view),
                 name='%sadmin_%s_%s_history' % info),
-            url(r'^(.+)/delete/$',
+            url(r'^(?P<object_id>.+)/delete/$',
                 wrap(self.delete_view),
                 name='%sadmin_%s_%s_delete' % info),
-            url(r'^(.+)/$',
+            url(r'^(?P<object_id>.+)/$',
                 wrap(self.change_view),
                 name='%sadmin_%s_%s_change' % info),
         )
@@ -593,6 +593,7 @@ class ModelAdmin(BaseModelAdmin):
             'save_as': self.save_as,
             'save_on_top': self.save_on_top,
             'root_path': self.admin_site.root_path,
+            'admin_site': self.admin_site.name,
         })
         return render_to_response(self.change_form_template or [
             "admin/%s/%s/change_form.html" % (app_label, opts.object_name.lower()),
@@ -780,6 +781,7 @@ class ModelAdmin(BaseModelAdmin):
             'errors': helpers.AdminErrorList(form, formsets),
             'root_path': self.admin_site.root_path,
             'app_label': opts.app_label,
+            'admin_site': self.admin_site.name,
         }
         context.update(extra_context or {})
         return self.render_change_form(request, context, add=True)
@@ -868,6 +870,7 @@ class ModelAdmin(BaseModelAdmin):
             'inline_admin_formsets': inline_admin_formsets,
             'errors': helpers.AdminErrorList(form, formsets),
             'root_path': self.admin_site.root_path,
+            'admin_site': self.admin_site.name,
             'app_label': opts.app_label,
         }
         context.update(extra_context or {})
@@ -958,6 +961,7 @@ class ModelAdmin(BaseModelAdmin):
             'media': media,
             'has_add_permission': self.has_add_permission(request),
             'root_path': self.admin_site.root_path,
+            'admin_site': self.admin_site.name,
             'app_label': app_label,
             'action_form': action_form,
             'actions_on_top': self.actions_on_top,
@@ -1016,6 +1020,7 @@ class ModelAdmin(BaseModelAdmin):
             "perms_lacking": perms_needed,
             "opts": opts,
             "root_path": self.admin_site.root_path,
+            'admin_site': self.admin_site.name,
             "app_label": app_label,
         }
         context.update(extra_context or {})
@@ -1043,6 +1048,7 @@ class ModelAdmin(BaseModelAdmin):
             'module_name': capfirst(force_unicode(opts.verbose_name_plural)),
             'object': obj,
             'root_path': self.admin_site.root_path,
+            'admin_site': self.admin_site.name,
             'app_label': app_label,
         }
         context.update(extra_context or {})

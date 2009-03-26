@@ -1210,7 +1210,7 @@ root each one at a different URL.
 
 .. versionchanged:: 1.1
     The method for hooking ``AdminSite`` instances into urls has changed in
-    Django 1.1.
+    Django 1.1
 
 In this example, the URLs ``/basic-admin/`` and ``/advanced-admin/`` feature
 separate versions of the admin site -- using the ``AdminSite`` instances
@@ -1226,6 +1226,11 @@ respectively::
         ('^advanced-admin/', include(advanced_site.urls)),
     )
 
+``AdminSites`` take a single argument to their constructor, their name, which
+can be anything you like.  This argument becomes the prefix to the URL names
+for the pruposes of :ref:`reversing them<admin-reverse-urls>`.  This is only
+necesary if you are using more than one ``AdminSite``.
+
 Adding views to admin sites
 ---------------------------
 
@@ -1235,4 +1240,53 @@ It possible to add additional views to the admin site in the same way one can
 add them to ``ModelAdmins``.  This by using the ``get_urls()`` method on an
 AdminSite in the same way as `described above`__
 
+.. note::
+    Any view you render that uses the admin templates, or extends the base
+    admin template should include in it's context a variable named
+    ``admin_site`` that contains the ``AdminSite`` instances name, which for
+    ``AdminSite`` instances exists at ``self.name`` and for ``ModelAdmin``
+    instances exists at ``self.admin_site.name``.
+
 __ `get_urls(self)`_
+
+.. _admin-reverse-urls:
+
+Reversing Admin URLs
+====================
+
+.. versionadded :: 1.1
+    Before Django 1.1 it wasn't possible to reverse admin URLs.  In addition
+    for this to work you need to be using the new Django 1.1 ``include()``
+    syntax for setting up admin URLs.
+
+The following are the url names, and parameters for ``AdminSite`` urls, all
+url names are prefixed with the ``AdminSite`` instace's name, followed by an
+underscore, so if an ``AdminSite`` was named ``"user_admin"`` it's urls names
+would be prefixed with ``"user_admin_"``, the default ``AdminSite``'s name is
+``''`` however it's names *do not* have the trailing underscore:
+
+    ======================  =============================== =============
+    Page                    URL name                        Parameters
+    ======================  =============================== =============
+    Index                   ``admin_index``
+    Logout                  ``admin_logout``
+    Password change         ``admin_password_change``
+    Password change done    ``admin_password_change_done``
+    i18n javascript         ``admin_jsi18n``
+    Application index page  ``admin_app_list``              ``app_label``
+    ======================  =============================== =============
+
+The remaining urls are for ``ModelAdmin`` instances, these too are all prefixed
+with the ``AdminSite``'s name(with the same caviets as the ``Adminsite``, and
+``app_label`` and ``model_name`` are the lowercase versions of the
+application's name and the model's name:
+
+    ======================  =====================================================   =============
+    Page                    URL name                                                Parameters
+    ======================  =====================================================   =============
+    Changelist              ``admin_{{ app_label }}_{{ model_name }}_changelist``
+    Add                     ``admin_{{ app_label }}_{{ model_name }}_add``
+    History                 ``admin_{{ app_label }}_{{ model_name }}_history``      ``object_id``
+    Delete                  ``admin_{{ app_label }}_{{ model_name }}_delete``       ``object_id``
+    Change                  ``admin_{{ app_label }}_{{ model_name }}_change``       ``object_id``
+    ======================  =====================================================   =============

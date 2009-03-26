@@ -3,6 +3,7 @@ from django import http, template
 from django.contrib.admin import ModelAdmin
 from django.contrib.auth import authenticate, login
 from django.db.models.base import ModelBase
+from django.core.urlresolvers import reverse
 from django.core.exceptions import ImproperlyConfigured
 from django.shortcuts import render_to_response
 from django.utils.functional import update_wrapper
@@ -35,10 +36,7 @@ class AdminSite(object):
 
     def __init__(self, name=None):
         self._registry = {} # model_class class -> admin_class instance
-        # TODO Root path is used to calculate urls under the old root() method
-        # in order to maintain backwards compatibility we are leaving that in
-        # so root_path isn't needed, not sure what to do about this.
-        self.root_path = 'admin/'
+        self.root_path = None
         if name is None:
             name = ''
         else:
@@ -171,7 +169,7 @@ class AdminSite(object):
                 name='%sadmin_index' % self.name),
             url(r'^logout/$',
                 wrap(self.logout),
-                name='%sadmin_logout'),
+                name='%sadmin_logout' % self.name),
             url(r'^password_change/$',
                 wrap(self.password_change),
                 name='%sadmin_password_change' % self.name),
@@ -205,8 +203,11 @@ class AdminSite(object):
         Handles the "change password" task -- both form display and validation.
         """
         from django.contrib.auth.views import password_change
-        return password_change(request,
-            post_change_redirect='%spassword_change/done/' % self.root_path)
+        if self.root_path is not None:
+            url = '%spassword_change/done/' % self.root_path
+        else:
+            url = reverse('%sadmin_password_change_done' % self.name)
+        return password_change(request, post_change_redirect=url)
 
     def password_change_done(self, request):
         """
@@ -336,6 +337,7 @@ class AdminSite(object):
             'title': _('Site administration'),
             'app_list': app_list,
             'root_path': self.root_path,
+            'admin_site': self.name
         }
         context.update(extra_context or {})
         return render_to_response(self.index_template or 'admin/index.html', context,
@@ -350,6 +352,7 @@ class AdminSite(object):
             'app_path': request.get_full_path(),
             'error_message': error_message,
             'root_path': self.root_path,
+            'admin_site': self.name,
         }
         context.update(extra_context or {})
         return render_to_response(self.login_template or 'admin/login.html', context,
@@ -396,6 +399,7 @@ class AdminSite(object):
             'title': _('%s administration') % capfirst(app_label),
             'app_list': [app_dict],
             'root_path': self.root_path,
+            'admin_site': self.name,
         }
         context.update(extra_context or {})
         return render_to_response(self.app_index_template or 'admin/app_index.html', context,

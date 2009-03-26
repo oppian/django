@@ -257,6 +257,8 @@ def resolve(path, urlconf=None):
     return get_resolver(urlconf).resolve(path)
 
 def reverse(viewname, urlconf=None, args=None, kwargs=None, prefix=None):
+    if isinstance(viewname, basestring):
+        viewname = ''.join(viewname.split(':'))
     args = args or []
     kwargs = kwargs or {}
     if prefix is None:

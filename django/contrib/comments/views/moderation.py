@@ -7,6 +7,7 @@ from django.core.paginator import Paginator, InvalidPage
 from django.http import Http404
 from django.contrib import comments
 from django.contrib.comments import signals
+from django.contrib import admin
 
 #@login_required
 def flag(request, comment_id, next=None):
@@ -185,7 +186,8 @@ def moderation_queue(request):
         'previous': page - 1,
         'pages': paginator.num_pages,
         'hits' : paginator.count,
-        'page_range' : paginator.page_range
+        'page_range' : paginator.page_range,
+        'admin_site': admin.site.name,
     }, context_instance=template.RequestContext(request))
 
 moderation_queue = permission_required("comments.can_moderate")(moderation_queue)

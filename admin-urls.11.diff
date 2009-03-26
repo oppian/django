@@ -1,0 +1,394 @@
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 8cc27c5..e00bbd6 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -233,13 +233,13 @@ class ModelAdmin(BaseModelAdmin):
+             url(r'^add/$',
+                 wrap(self.add_view),
+                 name='%sadmin_%s_%s_add' % info),
+-            url(r'^(.+)/history/$',
++            url(r'^(?P<object_id>.+)/history/$',
+                 wrap(self.history_view),
+                 name='%sadmin_%s_%s_history' % info),
+-            url(r'^(.+)/delete/$',
++            url(r'^(?P<object_id>.+)/delete/$',
+                 wrap(self.delete_view),
+                 name='%sadmin_%s_%s_delete' % info),
+-            url(r'^(.+)/$',
++            url(r'^(?P<object_id>.+)/$',
+                 wrap(self.change_view),
+                 name='%sadmin_%s_%s_change' % info),
+         )
+@@ -593,6 +593,7 @@ class ModelAdmin(BaseModelAdmin):
+             'save_as': self.save_as,
+             'save_on_top': self.save_on_top,
+             'root_path': self.admin_site.root_path,
++            'admin_site': self.admin_site.name,
+         })
+         return render_to_response(self.change_form_template or [
+             "admin/%s/%s/change_form.html" % (app_label, opts.object_name.lower()),
+@@ -780,6 +781,7 @@ class ModelAdmin(BaseModelAdmin):
+             'errors': helpers.AdminErrorList(form, formsets),
+             'root_path': self.admin_site.root_path,
+             'app_label': opts.app_label,
++            'admin_site': self.admin_site.name,
+         }
+         context.update(extra_context or {})
+         return self.render_change_form(request, context, add=True)
+@@ -868,6 +870,7 @@ class ModelAdmin(BaseModelAdmin):
+             'inline_admin_formsets': inline_admin_formsets,
+             'errors': helpers.AdminErrorList(form, formsets),
+             'root_path': self.admin_site.root_path,
++            'admin_site': self.admin_site.name,
+             'app_label': opts.app_label,
+         }
+         context.update(extra_context or {})
+@@ -958,6 +961,7 @@ class ModelAdmin(BaseModelAdmin):
+             'media': media,
+             'has_add_permission': self.has_add_permission(request),
+             'root_path': self.admin_site.root_path,
++            'admin_site': self.admin_site.name,
+             'app_label': app_label,
+             'action_form': action_form,
+             'actions_on_top': self.actions_on_top,
+@@ -1016,6 +1020,7 @@ class ModelAdmin(BaseModelAdmin):
+             "perms_lacking": perms_needed,
+             "opts": opts,
+             "root_path": self.admin_site.root_path,
++            'admin_site': self.admin_site.name,
+             "app_label": app_label,
+         }
+         context.update(extra_context or {})
+@@ -1043,6 +1048,7 @@ class ModelAdmin(BaseModelAdmin):
+             'module_name': capfirst(force_unicode(opts.verbose_name_plural)),
+             'object': obj,
+             'root_path': self.admin_site.root_path,
++            'admin_site': self.admin_site.name,
+             'app_label': app_label,
+         }
+         context.update(extra_context or {})
+diff --git a/django/contrib/admin/sites.py b/django/contrib/admin/sites.py
+index 872e4a0..e7bbfed 100644
+--- a/django/contrib/admin/sites.py
++++ b/django/contrib/admin/sites.py
+@@ -3,6 +3,7 @@ from django import http, template
+ from django.contrib.admin import ModelAdmin
+ from django.contrib.auth import authenticate, login
+ from django.db.models.base import ModelBase
++from django.core.urlresolvers import reverse
+ from django.core.exceptions import ImproperlyConfigured
+ from django.shortcuts import render_to_response
+ from django.utils.functional import update_wrapper
+@@ -35,10 +36,7 @@ class AdminSite(object):
+ 
+     def __init__(self, name=None):
+         self._registry = {} # model_class class -> admin_class instance
+-        # TODO Root path is used to calculate urls under the old root() method
+-        # in order to maintain backwards compatibility we are leaving that in
+-        # so root_path isn't needed, not sure what to do about this.
+-        self.root_path = 'admin/'
++        self.root_path = None
+         if name is None:
+             name = ''
+         else:
+@@ -171,7 +169,7 @@ class AdminSite(object):
+                 name='%sadmin_index' % self.name),
+             url(r'^logout/$',
+                 wrap(self.logout),
+-                name='%sadmin_logout'),
++                name='%sadmin_logout' % self.name),
+             url(r'^password_change/$',
+                 wrap(self.password_change),
+                 name='%sadmin_password_change' % self.name),
+@@ -205,8 +203,11 @@ class AdminSite(object):
+         Handles the "change password" task -- both form display and validation.
+         """
+         from django.contrib.auth.views import password_change
+-        return password_change(request,
+-            post_change_redirect='%spassword_change/done/' % self.root_path)
++        if self.root_path is not None:
++            url = '%spassword_change/done/' % self.root_path
++        else:
++            url = reverse('%sadmin_password_change_done' % self.name)
++        return password_change(request, post_change_redirect=url)
+ 
+     def password_change_done(self, request):
+         """
+@@ -336,6 +337,7 @@ class AdminSite(object):
+             'title': _('Site administration'),
+             'app_list': app_list,
+             'root_path': self.root_path,
++            'admin_site': self.name
+         }
+         context.update(extra_context or {})
+         return render_to_response(self.index_template or 'admin/index.html', context,
+@@ -350,6 +352,7 @@ class AdminSite(object):
+             'app_path': request.get_full_path(),
+             'error_message': error_message,
+             'root_path': self.root_path,
++            'admin_site': self.name,
+         }
+         context.update(extra_context or {})
+         return render_to_response(self.login_template or 'admin/login.html', context,
+@@ -396,6 +399,7 @@ class AdminSite(object):
+             'title': _('%s administration') % capfirst(app_label),
+             'app_list': [app_dict],
+             'root_path': self.root_path,
++            'admin_site': self.name,
+         }
+         context.update(extra_context or {})
+         return render_to_response(self.app_index_template or 'admin/app_index.html', context,
+diff --git a/django/contrib/admin/templates/admin/base.html b/django/contrib/admin/templates/admin/base.html
+index e969d1b..8b0e784 100644
+--- a/django/contrib/admin/templates/admin/base.html
++++ b/django/contrib/admin/templates/admin/base.html
+@@ -25,7 +25,34 @@
+         {% block branding %}{% endblock %}
+         </div>
+         {% if user.is_authenticated and user.is_staff %}
+-        <div id="user-tools">{% trans 'Welcome,' %} <strong>{% firstof user.first_name user.username %}</strong>. {% block userlinks %}{% url django-admindocs-docroot as docsroot %}{% if docsroot %}<a href="{{ docsroot }}">{% trans 'Documentation' %}</a> / {% endif %}<a href="{{ root_path }}password_change/">{% trans 'Change password' %}</a> / <a href="{{ root_path }}logout/">{% trans 'Log out' %}</a>{% endblock %}</div>
++        <div id="user-tools">
++            {% trans 'Welcome,' %} 
++            <strong>{% firstof user.first_name user.username %}</strong>. 
++            {% block userlinks %}
++                {% url django-admindocs-docroot as docsroot %}
++                {% if docsroot %}
++                    <a href="{{ docsroot }}">
++                        {% trans 'Documentation' %}
++                    </a> / 
++                {% endif %}
++                {% url admin_site:admin_password_change as password_change_url %}
++                {% if password_change_url %}
++                    <a href="{{ password_change_url }}">
++                {% else %}
++                    <a href="{{ root_path }}password_change/">
++                {% endif %}
++                    {% trans 'Change password' %}
++                </a> / 
++                {% url admin_site:admin_logout as logout_url %}
++                {% if logout_url %}
++                    <a href="{{ logout_url }}">
++                {% else %}
++                    <a href="{{ root_path }}logout/">
++                {% endif %}
++                    {% trans 'Log out' %}
++                </a>
++            {% endblock %}
++        </div>
+         {% endif %}
+         {% block nav-global %}{% endblock %}
+     </div>
+diff --git a/django/contrib/auth/admin.py b/django/contrib/auth/admin.py
+index c5326b7..9a13205 100644
+--- a/django/contrib/auth/admin.py
++++ b/django/contrib/auth/admin.py
+@@ -92,6 +92,7 @@ class UserAdmin(admin.ModelAdmin):
+             'save_as': False,
+             'username_help_text': self.model._meta.get_field('username').help_text,
+             'root_path': self.admin_site.root_path,
++            'admin_site': self.admin_site.name,
+             'app_label': self.model._meta.app_label,            
+         }, context_instance=template.RequestContext(request))
+ 
+@@ -122,6 +123,7 @@ class UserAdmin(admin.ModelAdmin):
+             'save_as': False,
+             'show_save': True,
+             'root_path': self.admin_site.root_path,
++            'admin_site': self.admin_site.name,
+         }, context_instance=RequestContext(request))
+ 
+ 
+diff --git a/django/contrib/comments/views/moderation.py b/django/contrib/comments/views/moderation.py
+index 3334b09..880c6d7 100644
+--- a/django/contrib/comments/views/moderation.py
++++ b/django/contrib/comments/views/moderation.py
+@@ -7,6 +7,7 @@ from django.core.paginator import Paginator, InvalidPage
+ from django.http import Http404
+ from django.contrib import comments
+ from django.contrib.comments import signals
++from django.contrib import admin
+ 
+ #@login_required
+ def flag(request, comment_id, next=None):
+@@ -185,7 +186,8 @@ def moderation_queue(request):
+         'previous': page - 1,
+         'pages': paginator.num_pages,
+         'hits' : paginator.count,
+-        'page_range' : paginator.page_range
++        'page_range' : paginator.page_range,
++        'admin_site': admin.site.name,
+     }, context_instance=template.RequestContext(request))
+ 
+ moderation_queue = permission_required("comments.can_moderate")(moderation_queue)
+diff --git a/django/core/urlresolvers.py b/django/core/urlresolvers.py
+index 6fc5cfc..7e42c9f 100644
+--- a/django/core/urlresolvers.py
++++ b/django/core/urlresolvers.py
+@@ -257,6 +257,8 @@ def resolve(path, urlconf=None):
+     return get_resolver(urlconf).resolve(path)
+ 
+ def reverse(viewname, urlconf=None, args=None, kwargs=None, prefix=None):
++    if isinstance(viewname, basestring):
++        viewname = ''.join(viewname.split(':'))
+     args = args or []
+     kwargs = kwargs or {}
+     if prefix is None:
+diff --git a/django/template/defaulttags.py b/django/template/defaulttags.py
+index c08ecc4..6fb0b7a 100644
+--- a/django/template/defaulttags.py
++++ b/django/template/defaulttags.py
+@@ -359,6 +359,14 @@ class URLNode(Node):
+ 
+     def render(self, context):
+         from django.core.urlresolvers import reverse, NoReverseMatch
++        view_name_parts = []
++        for part in self.view_name[:-1]:
++            try:
++                view_name_parts.append(Variable(part).resolve(context))
++            except VariableDoesNotExist:
++                view_name_parts.append(part)
++        view_name_parts.append(self.view_name[-1])
++        view_name = ':'.join(view_name_parts)
+         args = [arg.resolve(context) for arg in self.args]
+         kwargs = dict([(smart_str(k,'ascii'), v.resolve(context))
+                        for k, v in self.kwargs.items()])
+@@ -369,11 +377,11 @@ class URLNode(Node):
+         # {% url ... as var %} construct in which cause return nothing.
+         url = ''
+         try:
+-            url = reverse(self.view_name, args=args, kwargs=kwargs)
++            url = reverse(view_name, args=args, kwargs=kwargs)
+         except NoReverseMatch:
+             project_name = settings.SETTINGS_MODULE.split('.')[0]
+             try:
+-                url = reverse(project_name + '.' + self.view_name,
++                url = reverse(project_name + '.' + view_name,
+                               args=args, kwargs=kwargs)
+             except NoReverseMatch:
+                 if self.asvar is None:
+@@ -1097,6 +1105,10 @@ def url(parser, token):
+         raise TemplateSyntaxError("'%s' takes at least one argument"
+                                   " (path to a view)" % bits[0])
+     viewname = bits[1]
++    if ':' in viewname:
++        viewname = viewname.split(':')
++    else:
++        viewname = [viewname]
+     args = []
+     kwargs = {}
+     asvar = None
+diff --git a/docs/ref/contrib/admin/index.txt b/docs/ref/contrib/admin/index.txt
+index 0dff313..492afb1 100644
+--- a/docs/ref/contrib/admin/index.txt
++++ b/docs/ref/contrib/admin/index.txt
+@@ -1210,7 +1210,7 @@ root each one at a different URL.
+ 
+ .. versionchanged:: 1.1
+     The method for hooking ``AdminSite`` instances into urls has changed in
+-    Django 1.1.
++    Django 1.1
+ 
+ In this example, the URLs ``/basic-admin/`` and ``/advanced-admin/`` feature
+ separate versions of the admin site -- using the ``AdminSite`` instances
+@@ -1226,6 +1226,11 @@ respectively::
+         ('^advanced-admin/', include(advanced_site.urls)),
+     )
+ 
++``AdminSites`` take a single argument to their constructor, their name, which
++can be anything you like.  This argument becomes the prefix to the URL names
++for the pruposes of :ref:`reversing them<admin-reverse-urls>`.  This is only
++necesary if you are using more than one ``AdminSite``.
++
+ Adding views to admin sites
+ ---------------------------
+ 
+@@ -1235,4 +1240,53 @@ It possible to add additional views to the admin site in the same way one can
+ add them to ``ModelAdmins``.  This by using the ``get_urls()`` method on an
+ AdminSite in the same way as `described above`__
+ 
++.. note::
++    Any view you render that uses the admin templates, or extends the base
++    admin template should include in it's context a variable named
++    ``admin_site`` that contains the ``AdminSite`` instances name, which for
++    ``AdminSite`` instances exists at ``self.name`` and for ``ModelAdmin``
++    instances exists at ``self.admin_site.name``.
++
+ __ `get_urls(self)`_
++
++.. _admin-reverse-urls:
++
++Reversing Admin URLs
++====================
++
++.. versionadded :: 1.1
++    Before Django 1.1 it wasn't possible to reverse admin URLs.  In addition
++    for this to work you need to be using the new Django 1.1 ``include()``
++    syntax for setting up admin URLs.
++
++The following are the url names, and parameters for ``AdminSite`` urls, all
++url names are prefixed with the ``AdminSite`` instace's name, followed by an
++underscore, so if an ``AdminSite`` was named ``"user_admin"`` it's urls names
++would be prefixed with ``"user_admin_"``, the default ``AdminSite``'s name is
++``''`` however it's names *do not* have the trailing underscore:
++
++    ======================  =============================== =============
++    Page                    URL name                        Parameters
++    ======================  =============================== =============
++    Index                   ``admin_index``
++    Logout                  ``admin_logout``
++    Password change         ``admin_password_change``
++    Password change done    ``admin_password_change_done``
++    i18n javascript         ``admin_jsi18n``
++    Application index page  ``admin_app_list``              ``app_label``
++    ======================  =============================== =============
++
++The remaining urls are for ``ModelAdmin`` instances, these too are all prefixed
++with the ``AdminSite``'s name(with the same caviets as the ``Adminsite``, and
++``app_label`` and ``model_name`` are the lowercase versions of the
++application's name and the model's name:
++
++    ======================  =====================================================   =============
++    Page                    URL name                                                Parameters
++    ======================  =====================================================   =============
++    Changelist              ``admin_{{ app_label }}_{{ model_name }}_changelist``
++    Add                     ``admin_{{ app_label }}_{{ model_name }}_add``
++    History                 ``admin_{{ app_label }}_{{ model_name }}_history``      ``object_id``
++    Delete                  ``admin_{{ app_label }}_{{ model_name }}_delete``       ``object_id``
++    Change                  ``admin_{{ app_label }}_{{ model_name }}_change``       ``object_id``
++    ======================  =====================================================   =============
+diff --git a/tests/regressiontests/admin_views/tests.py b/tests/regressiontests/admin_views/tests.py
+index ce63567..6b32d3b 100644
+--- a/tests/regressiontests/admin_views/tests.py
++++ b/tests/regressiontests/admin_views/tests.py
+@@ -180,6 +180,11 @@ class AdminViewBasicTest(TestCase):
+         self.assertRedirects(response, '/test_admin/%s/admin_views/thing/?e=1' % self.urlbit)
+         response = self.client.get('/test_admin/%s/admin_views/thing/' % self.urlbit, {'color__id__exact': 'StringNotInteger!'})
+         self.assertRedirects(response, '/test_admin/%s/admin_views/thing/?e=1' % self.urlbit)
++    
++    def testLogoutAndPasswordChangeURLs(self):
++        response = self.client.get('/test_admin/%s/admin_views/article/' % self.urlbit)
++        self.failIf('<a href="/test_admin/%s/logout/">' % self.urlbit not in response.content)
++        self.failIf('<a href="/test_admin/%s/password_change/">' % self.urlbit not in response.content) 
+ 
+ class CustomModelAdminTest(AdminViewBasicTest):
+     urlbit = "admin2"
+diff --git a/tests/urls.py b/tests/urls.py
+index 6704829..31faea5 100644
+--- a/tests/urls.py
++++ b/tests/urls.py
+@@ -21,12 +21,13 @@ urlpatterns = patterns('',
+     # test urlconf for middleware tests
+     (r'^middleware/', include('regressiontests.middleware.urls')),
+ 
++    # admin widget tests
++    (r'widget_admin/', include('regressiontests.admin_widgets.urls')),
++
+     # admin view tests
+     (r'^test_admin/', include('regressiontests.admin_views.urls')),
+     (r'^generic_inline_admin/', include('regressiontests.generic_inline_admin.urls')),
+ 
+-    # admin widget tests
+-    (r'widget_admin/', include('regressiontests.admin_widgets.urls')),
+ 
+     (r'^utils/', include('regressiontests.utils.urls')),
+ 
