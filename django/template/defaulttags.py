@@ -359,14 +359,6 @@ class URLNode(Node):
 
     def render(self, context):
         from django.core.urlresolvers import reverse, NoReverseMatch
-        view_name_parts = []
-        for part in self.view_name[:-1]:
-            try:
-                view_name_parts.append(Variable(part).resolve(context))
-            except VariableDoesNotExist:
-                view_name_parts.append(part)
-        view_name_parts.append(self.view_name[-1])
-        view_name = ':'.join(view_name_parts)
         args = [arg.resolve(context) for arg in self.args]
         kwargs = dict([(smart_str(k,'ascii'), v.resolve(context))
                        for k, v in self.kwargs.items()])
@@ -1115,10 +1107,6 @@ def url(parser, token):
         raise TemplateSyntaxError("'%s' takes at least one argument"
                                   " (path to a view)" % bits[0])
     viewname = bits[1]
-    if ':' in viewname:
-        viewname = viewname.split(':')
-    else:
-        viewname = [viewname]
     args = []
     kwargs = {}
     asvar = None

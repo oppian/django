@@ -92,7 +92,6 @@ class UserAdmin(admin.ModelAdmin):
             'save_as': False,
             'username_help_text': self.model._meta.get_field('username').help_text,
             'root_path': self.admin_site.root_path,
-            'admin_site': self.admin_site.name,
             'app_label': self.model._meta.app_label,            
         }, context_instance=template.RequestContext(request))
 
@@ -123,7 +122,6 @@ class UserAdmin(admin.ModelAdmin):
             'save_as': False,
             'show_save': True,
             'root_path': self.admin_site.root_path,
-            'admin_site': self.admin_site.name,
         }, context_instance=RequestContext(request))
 
 
