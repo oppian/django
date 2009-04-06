@@ -99,6 +99,10 @@ For example::
     {% for comment in comment_list %}
         ...
     {% endfor %}
+    
+This returns a list of :class:`~django.contrib.comments.models.Comment` objects;
+see :ref:`the comment model documentation <ref-contrib-comments-models>` for
+details.
 
 .. templatetag:: get_comment_count
 
@@ -155,9 +159,10 @@ A complete form might look like::
     {% get_comment_form for event as form %}
     <form action="{% comment_form_target %}" method="POST">
       {{ form }}
-      <p class="submit">
-        <input type="submit" name="preview" class="submit-post" value="Preview">
-      </p>
+      <tr>
+        <td></td>
+        <td><input type="submit" name="preview" class="submit-post" value="Preview"></td>
+      </tr>
     </form>
     
 Be sure to read the `notes on the comment form`_, below, for some special
@@ -211,6 +216,7 @@ More information
 .. toctree::
    :maxdepth: 1
 
+   models
    settings
    signals
    upgrade

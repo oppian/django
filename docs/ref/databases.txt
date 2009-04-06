@@ -26,7 +26,7 @@ The implementation of the population statistics aggregates ``STDDEV_POP`` and
 faulty`_. Users of these releases of PostgreSQL are advised to upgrade to
 `Release 8.2.5`_ or later. Django will raise a ``NotImplementedError`` if you
 attempt to use the ``StdDev(sample=False)`` or ``Variance(sample=False)``
-aggregate with an database backend falls within the affected release range.
+aggregate with a database backend that falls within the affected release range.
 
 .. _known to be faulty: http://archives.postgresql.org/pgsql-bugs/2007-07/msg00046.php
 .. _Release 8.2.5: http://developer.postgresql.org/pgdocs/postgres/release-8-2-5.html
@@ -35,7 +35,7 @@ Transaction handling
 ---------------------
 
 :ref:`By default <topics-db-transactions>`, Django starts a transaction when a
-database connection if first used and commits the result at the end of the
+database connection is first used and commits the result at the end of the
 request/response handling. The PostgreSQL backends normally operate the same
 as any other Django backend in this respect.
 
@@ -80,16 +80,15 @@ You should also audit your existing code for any instances of this behavior
 before enabling this feature. It's faster, but it provides less automatic
 protection for multi-call operations.
 
-
 .. _mysql-notes:
 
 MySQL notes
 ===========
 
-Django expects the database to support transactions, referential integrity,
-and Unicode support (UTF-8 encoding). Fortunately, MySQL_ has all these
-features as available as far back as 3.23. While it may be possible to use
-3.23 or 4.0, you'll probably have less trouble if you use 4.1 or 5.0.
+Django expects the database to support transactions, referential integrity, and
+Unicode (UTF-8 encoding). Fortunately, MySQL_ has all these features as
+available as far back as 3.23. While it may be possible to use 3.23 or 4.0,
+you'll probably have less trouble if you use 4.1 or 5.0.
 
 MySQL 4.1
 ---------
@@ -247,18 +246,18 @@ anything in a `MySQL option file`_.
 
 Here's a sample configuration which uses a MySQL option file::
 
-  # settings.py
-  DATABASE_ENGINE = "mysql"
-  DATABASE_OPTIONS = {
-      'read_default_file': '/path/to/my.cnf',
-  }
-
-  # my.cnf
-  [client]
-  database = DATABASE_NAME
-  user = DATABASE_USER
-  password = DATABASE_PASSWORD
-  default-character-set = utf8
+    # settings.py
+    DATABASE_ENGINE = "mysql"
+    DATABASE_OPTIONS = {
+        'read_default_file': '/path/to/my.cnf',
+    }
+    
+    # my.cnf
+    [client]
+    database = DATABASE_NAME
+    user = DATABASE_USER
+    password = DATABASE_PASSWORD
+    default-character-set = utf8
 
 Several other MySQLdb connection options may be useful, such as ``ssl``,
 ``use_unicode``, ``init_command``, and ``sql_mode``. Consult the
@@ -351,44 +350,44 @@ will not work as expected for non-ASCII strings.
 
 .. _documented at sqlite.org: http://www.sqlite.org/faq.html#q18
 
-Versions prior to 3.3.6
-------------------------
+SQLite 3.3.6 or newer strongly recommended
+------------------------------------------
 
-Versions of SQLite 3.3.5 and older `contain a bug`_ when handling ``ORDER BY``
-parameters. This can cause problems when you use the ``select`` parameter for
-the ``extra()`` QuerySet method. The bug can be identified by the error message
-``OperationalError: ORDER BY terms must not be non-integer constants``. The
-problem can be solved updating SQLite to version 3.3.6 or newer, possibly also
-updating the ``pysqlite2`` Python module in the process.
+Versions of SQLite 3.3.5 and older contains the following bugs:
 
-.. _contain a bug: http://www.sqlite.org/cvstrac/tktview?tn=1768
+ * A bug when `handling`_ ``ORDER BY`` parameters. This can cause problems when
+   you use the ``select`` parameter for the ``extra()`` QuerySet method. The bug
+   can be identified by the error message ``OperationalError: ORDER BY terms
+   must not be non-integer constants``.
 
-This has a very low impact because 3.3.6 was released in April 2006, so most
-current binary distributions for different platforms include newer version of
-SQLite usable from Python through either the ``pysqlite2`` or the ``sqlite3``
-modules.
+ * A bug when handling `aggregation`_ together with DateFields and
+   DecimalFields.
 
-However, in the case of Windows, the official binary distribution of the stable
-release of Python 2.5 (2.5.2, as of this writing) includes SQLite 3.3.4, so the bug can
-make itself evident in that platform. There are (as of Django 1.0) even three
-tests in the Django test suite that will fail when run under this setup.  As
-described above, this can be solved by downloading and installing a newer
-version of ``pysqlite2`` (``pysqlite-2.x.x.win32-py2.5.exe``) that includes and
-uses a newer version of SQLite. Python 2.6 ships with a newer version of
-SQLite and is not affected by this issue.
+.. _handling: http://www.sqlite.org/cvstrac/tktview?tn=1768
+.. _aggregation: http://code.djangoproject.com/ticket/10031
 
-If you are in such platform and find yourself in the need to update
-``pysqlite``/SQLite, you will also need to manually modify the
-``django/db/backends/sqlite3/base.py`` file in the Django source tree so it
-attempts to import ``pysqlite2`` before than ``sqlite3`` and so it can take
-advantage of the new ``pysqlite2``/SQLite versions.
+SQLite 3.3.6 was released in April 2006, so most current binary distributions
+for different platforms include newer version of SQLite usable from Python
+through either the ``pysqlite2`` or the ``sqlite3`` modules.
+
+However, some platform/Python version combinations include older versions of
+SQLite (e.g. the official binary distribution of Python 2.5 for Windows, 2.5.4
+as of this writing, includes SQLite 3.3.4). There are (as of Django 1.1) even
+some tests in the Django test suite that will fail when run under this setup.
+
+As described :ref:`below<using-newer-versions-of-pysqlite>`, this can be solved
+by downloading and installing a newer version of ``pysqlite2``
+(``pysqlite-2.x.x.win32-py2.5.exe`` in the described case) that includes and
+uses a newer version of SQLite. Python 2.6 for Windows ships with a version of
+SQLite that is not affected by these issues.
 
 Version 3.5.9
 -------------
 
-The Ubuntu "Intrepid Ibex" SQLite 3.5.9-3 package contains a bug that causes
-problems with the evaluation of query expressions. If you are using Ubuntu
-"Intrepid Ibex", you will need to find an alternate source for SQLite
+The Ubuntu "Intrepid Ibex" (8.10) SQLite 3.5.9-3 package contains a bug that
+causes problems with the evaluation of query expressions. If you are using
+Ubuntu "Intrepid Ibex", you will need to update the package to version
+3.5.9-3ubuntu1 or newer (recommended) or find an alternate source for SQLite
 packages, or install SQLite from source.
 
 At one time, Debian Lenny shipped with the same malfunctioning SQLite 3.5.9-3
@@ -410,6 +409,57 @@ DISTINCT`` handling that is triggered by, amongst other things, Django's
 You should avoid using this version of SQLite with Django. Either upgrade to
 3.6.3 (released September 22, 2008) or later, or downgrade to an earlier
 version of SQLite.
+
+.. _using-newer-versions-of-pysqlite:
+
+Using newer versions of the SQLite DB-API 2.0 driver
+----------------------------------------------------
+
+.. versionadded:: 1.1
+
+For versions of Python 2.5 or newer that include ``sqlite3`` in the standard
+library Django will now use a ``pysqlite2`` interface in preference to
+``sqlite3`` if it finds one is available.
+
+This provides the ability to upgrade both the DB-API 2.0 interface or SQLite 3
+itself to versions newer than the ones included with your particular Python
+binary distribution, if needed.
+
+"Database is locked" errors
+-----------------------------------------------
+
+SQLite is meant to be a lightweight database, and thus can't support a high
+level of concurrency. ``OperationalError: database is locked`` errors indicate
+that your application is experiencing more concurrency than ``sqlite`` can
+handle in default configuration. This error means that one thread or process has
+an exclusive lock on the database connection and another thread timed out
+waiting for the lock the be released.
+
+Python's SQLite wrapper has
+a default timeout value that determines how long the second thread is allowed to
+wait on the lock before it times out and raises the ``OperationalError: database
+is locked`` error.
+
+If you're getting this error, you can solve it by:
+
+    * Switching to another database backend. At a certain point SQLite becomes
+      too "lite" for real-world applications, and these sorts of concurrency
+      errors indicate you've reached that point.
+      
+    * Rewriting your code to reduce concurrency and ensure that database 
+      transactions are short-lived.
+      
+    * Increase the default timeout value by setting the ``timeout`` database
+      option option::
+
+          DATABASE_OPTIONS = {
+              # ...
+             "timeout": 20,
+              # ...
+          }
+      
+      This will simply make SQLite wait a bit longer before throwing "database
+      is locked" errors; it won't really do anything to solve them.
 
 .. _oracle-notes:
 

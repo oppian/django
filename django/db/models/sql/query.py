@@ -196,7 +196,7 @@ class BaseQuery(object):
         obj.distinct = self.distinct
         obj.select_related = self.select_related
         obj.related_select_cols = []
-        obj.aggregates = self.aggregates.copy()
+        obj.aggregates = deepcopy(self.aggregates)
         if self.aggregate_select_mask is None:
             obj.aggregate_select_mask = None
         else:
@@ -574,12 +574,13 @@ class BaseQuery(object):
         if not field_names:
             return
         columns = set()
-        cur_model = self.model
-        opts = cur_model._meta
+        orig_opts = self.model._meta
         seen = {}
-        must_include = {cur_model: set([opts.pk])}
+        must_include = {self.model: set([orig_opts.pk])}
         for field_name in field_names:
             parts = field_name.split(LOOKUP_SEP)
+            cur_model = self.model
+            opts = orig_opts
             for name in parts[:-1]:
                 old_model = cur_model
                 source = opts.get_field_by_name(name)[0]
@@ -784,8 +785,6 @@ class BaseQuery(object):
                 aliases.add(r)
                 if with_aliases:
                     col_aliases.add(field.column)
-        if as_pairs:
-            return result, aliases
         return result, aliases
 
     def get_from_clause(self):
@@ -2368,4 +2367,3 @@ def add_to_dict(data, key, value):
         data[key].add(value)
     else:
         data[key] = set([value])
-

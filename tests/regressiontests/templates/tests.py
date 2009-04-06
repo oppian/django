@@ -6,10 +6,11 @@ if __name__ == '__main__':
     # before importing 'template'.
     settings.configure()
 
+from datetime import datetime, timedelta
 import os
+import sys
 import traceback
 import unittest
-from datetime import datetime, timedelta
 
 from django import template
 from django.core import urlresolvers
@@ -152,6 +153,28 @@ class Templates(unittest.TestCase):
         split = token.split_contents()
         self.assertEqual(split, ["sometag", '_("Page not found")', 'value|yesno:_("yes,no")'])
 
+    def test_url_reverse_no_settings_module(self):
+        # Regression test for #9005
+        from django.template import Template, Context, TemplateSyntaxError
+
+        old_settings_module = settings.SETTINGS_MODULE
+        old_template_debug = settings.TEMPLATE_DEBUG
+
+        settings.SETTINGS_MODULE = None
+        settings.TEMPLATE_DEBUG = True
+
+        t = Template('{% url will_not_match %}')
+        c = Context()
+        try:
+            rendered = t.render(c)
+        except TemplateSyntaxError, e:
+            # Assert that we are getting the template syntax error and not the
+            # string encoding error.
+            self.assertEquals(e.args[0], "Caught an exception while rendering: Reverse for 'will_not_match' with arguments '()' and keyword arguments '{}' not found.")
+
+        settings.SETTINGS_MODULE = old_settings_module
+        settings.TEMPLATE_DEBUG = old_template_debug
+
     def test_templates(self):
         template_tests = self.get_template_tests()
         filter_tests = filters.get_filter_tests()
@@ -229,7 +252,8 @@ class Templates(unittest.TestCase):
         settings.TEMPLATE_DEBUG = old_td
         settings.TEMPLATE_STRING_IF_INVALID = old_invalid
 
-        self.assertEqual(failures, [], ('-'*70 + '\n').join(failures))
+        self.assertEqual(failures, [], "Tests failed:\n%s\n%s" %
+            ('-'*70, ("\n%s\n" % ('-'*70)).join(failures)))
 
     def render(self, test_template, vals):
         return test_template.render(template.Context(vals[1]))
@@ -660,6 +684,8 @@ class Templates(unittest.TestCase):
             'include02': ('{% include "basic-syntax02" %}', {'headline': 'Included'}, "Included"),
             'include03': ('{% include template_name %}', {'template_name': 'basic-syntax02', 'headline': 'Included'}, "Included"),
             'include04': ('a{% include "nonexistent" %}b', {}, "ab"),
+            'include 05': ('template with a space', {}, 'template with a space'),
+            'include06': ('{% include "include 05"%}', {}, 'template with a space'),
 
             ### NAMED ENDBLOCKS #######################################################
 
@@ -758,6 +784,12 @@ class Templates(unittest.TestCase):
 
             # Inheritance from a template that doesn't have any blocks
             'inheritance27': ("{% extends 'inheritance26' %}", {}, 'no tags'),
+
+            # Set up a base template with a space in it.
+            'inheritance 28': ("{% block first %}!{% endblock %}", {}, '!'),
+
+            # Inheritance from a template with a space in its name should work.
+            'inheritance29': ("{% extends 'inheritance 28' %}", {}, '!'),
 
             ### I18N ##################################################################
 
@@ -898,7 +930,10 @@ class Templates(unittest.TestCase):
             # Raise exception if we don't have 3 args, last one an integer
             'widthratio08': ('{% widthratio %}', {}, template.TemplateSyntaxError),
             'widthratio09': ('{% widthratio a b %}', {'a':50,'b':100}, template.TemplateSyntaxError),
-            'widthratio10': ('{% widthratio a b 100.0 %}', {'a':50,'b':100}, template.TemplateSyntaxError),
+            'widthratio10': ('{% widthratio a b 100.0 %}', {'a':50,'b':100}, '50'),
+
+            # #10043: widthratio should allow max_width to be a variable
+            'widthratio11': ('{% widthratio a b c %}', {'a':50,'b':100, 'c': 100}, '50'),
 
             ### WITH TAG ########################################################
             'with01': ('{% with dict.key as key %}{{ key }}{% endwith %}', {'dict': {'key':50}}, '50'),

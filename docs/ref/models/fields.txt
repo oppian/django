@@ -7,6 +7,8 @@ Model field reference
 .. module:: django.db.models.fields
    :synopsis: Built-in field types.
 
+.. currentmodule:: django.db.models
+
 This document contains all the gory details about all the `field options`_ and
 `field types`_ Django's got to offer.
 
@@ -239,7 +241,8 @@ you try to save a model with a duplicate value in a :attr:`~Field.unique`
 field, a :exc:`django.db.IntegrityError` will be raised by the model's
 :meth:`~django.db.models.Model.save` method.
 
-This option is valid on all field types except :class:`ManyToManyField`.
+This option is valid on all field types except :class:`ManyToManyField` and
+:class:`FileField`.
 
 ``unique_for_date``
 -------------------
@@ -365,13 +368,14 @@ portability mentioned there should be heeded.
 
 .. class:: DateField([auto_now=False, auto_now_add=False, **options])
 
-A date field. Has a few extra optional arguments:
+A date, represented in Python by a ``datetime.date`` instance. Has a few extra,
+optional arguments:
 
 .. attribute:: DateField.auto_now
 
     Automatically set the field to now every time the object is saved. Useful
-    for "last-modified" timestamps. Note that the current date is *always* used;
-    it's not just a default value that you can override.
+    for "last-modified" timestamps. Note that the current date is *always*
+    used; it's not just a default value that you can override.
 
 .. attribute:: DateField.auto_now_add
 
@@ -380,18 +384,19 @@ A date field. Has a few extra optional arguments:
     it's not just a default value that you can override.
 
 The admin represents this as an ``<input type="text">`` with a JavaScript
-calendar, and a shortcut for "Today".  The JavaScript calendar will always start
-the week on a Sunday.
+calendar, and a shortcut for "Today".  The JavaScript calendar will always
+start the week on a Sunday.
 
 ``DateTimeField``
 -----------------
 
 .. class:: DateTimeField([auto_now=False, auto_now_add=False, **options])
 
-A date and time field. Takes the same extra options as :class:`DateField`.
+A date and time, represented in Python by a ``datetime.datetime`` instance.
+Takes the same extra arguments as :class:`DateField`.
 
-The admin represents this as two ``<input type="text">`` fields, with JavaScript
-shortcuts.
+The admin represents this as two ``<input type="text">`` fields, with
+JavaScript shortcuts.
 
 ``DecimalField``
 ----------------
@@ -435,7 +440,13 @@ A :class:`CharField` that checks that the value is a valid e-mail address.
 
 .. class:: FileField(upload_to=None, [max_length=100, **options])
 
-A file-upload field. Has one **required** argument:
+A file-upload field.
+
+.. note::
+    The ``primary_key`` and ``unique`` arguments are not supported, and will
+    raise a ``TypeError`` if used.
+
+Has one **required** argument:
 
 .. attribute:: FileField.upload_to
 
@@ -706,9 +717,11 @@ input).
 
 .. class:: TimeField([auto_now=False, auto_now_add=False, **options])
 
-A time. Accepts the same auto-population options as :class:`DateField` and
-:class:`DateTimeField`. The admin represents this as an ``<input type="text">``
-with some JavaScript shortcuts.
+A time, represented in Python by a ``datetime.time`` instance. Accepts the same
+auto-population options as :class:`DateField`.
+
+The admin represents this as an ``<input type="text">`` with some JavaScript
+shortcuts.
 
 ``URLField``
 ------------
@@ -720,7 +733,10 @@ A :class:`CharField` for a URL. Has one extra optional argument:
 .. attribute:: URLField.verify_exists
 
     If ``True`` (the default), the URL given will be checked for existence
-    (i.e., the URL actually loads and doesn't give a 404 response).
+    (i.e., the URL actually loads and doesn't give a 404 response). It should
+    be noted that when using the single-threaded development server, validating
+    a url being serverd by the same server will hang.
+    This should not be a problem for multithreaded servers.
 
 The admin represents this as an ``<input type="text">`` (a single-line input).
 
@@ -854,11 +870,11 @@ the model is related. This works exactly the same as it does for
 Behind the scenes, Django creates an intermediary join table to represent the
 many-to-many relationship. By default, this table name is generated using the
 names of the two tables being joined. Since some databases don't support table
-names above a certain length (often 32 characters), these table names will be
-automatically truncated to 32 characters and a uniqueness hash will be used.
-This means you might see table names like ``author_books_9cdf4``; this is
-perfectly normal. You can manually provide the name of the join table using
-the :attr:`~ManyToManyField.db_table` option.
+names above a certain length, these table names will be automatically
+truncated to 64 characters and a uniqueness hash will be used. This means you
+might see table names like ``author_books_9cdf4``; this is perfectly normal.
+You can manually provide the name of the join table using the
+:attr:`~ManyToManyField.db_table` option.
 
 .. _manytomany-arguments:
 
@@ -873,8 +889,9 @@ that control how the relationship functions.
 
     Same as :attr:`ForeignKey.limit_choices_to`.
 
-    ``limit_choices_to`` has no effect when used on a ``ManyToManyField`` with
-    an intermediate table.
+    ``limit_choices_to`` has no effect when used on a ``ManyToManyField`` with a
+    custom intermediate table specified using the
+    :attr:`~ManyToManyField.through` paramter.
 
 .. attribute:: ManyToManyField.symmetrical
 
@@ -904,7 +921,8 @@ that control how the relationship functions.
     use.
 
     The most common use for this option is when you want to associate
-    :ref:`extra data with a many-to-many relationship <intermediary-manytomany>`.
+    :ref:`extra data with a many-to-many relationship
+    <intermediary-manytomany>`.
 
 .. attribute:: ManyToManyField.db_table
 
