@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import tempfile
+import os
+from django.core.files.storage import FileSystemStorage
 from django.db import models
 from django.contrib import admin
 from django.core.mail import EmailMessage
@@ -169,7 +172,7 @@ class PersonAdmin(admin.ModelAdmin):
     list_display = ('name', 'gender', 'alive')
     list_editable = ('gender', 'alive')
     list_filter = ('gender',)
-    search_fields = ('name',)
+    search_fields = (u'name',)
     ordering = ["id"]
 
 class Persona(models.Model):
@@ -223,7 +226,7 @@ class Subscriber(models.Model):
         return "%s (%s)" % (self.name, self.email)
 
 class SubscriberAdmin(admin.ModelAdmin):
-    actions = ['delete_selected', 'mail_admin']
+    actions = ['mail_admin']
 
     def mail_admin(self, request, selected):
         EmailMessage(
@@ -236,7 +239,10 @@ class SubscriberAdmin(admin.ModelAdmin):
 class ExternalSubscriber(Subscriber):
     pass
 
-def external_mail(request, selected):
+class OldSubscriber(Subscriber):
+    pass
+
+def external_mail(modeladmin, request, selected):
     EmailMessage(
         'Greetings from a function action',
         'This is the test email from a function action',
@@ -244,7 +250,7 @@ def external_mail(request, selected):
         ['to@example.com']
     ).send()
 
-def redirect_to(request, selected):
+def redirect_to(modeladmin, request, selected):
     from django.http import HttpResponseRedirect
     return HttpResponseRedirect('/some-where-else/')
 
@@ -260,6 +266,16 @@ class Podcast(Media):
 class PodcastAdmin(admin.ModelAdmin):
     list_display = ('name', 'release_date')
     list_editable = ('release_date',)
+
+    ordering = ('name',)
+
+class Vodcast(Media):
+    media = models.OneToOneField(Media, primary_key=True, parent_link=True)
+    released = models.BooleanField(default=False)
+
+class VodcastAdmin(admin.ModelAdmin):
+    list_display = ('name', 'released')
+    list_editable = ('released',)
 
     ordering = ('name',)
 
@@ -285,6 +301,30 @@ class EmptyModelAdmin(admin.ModelAdmin):
     def queryset(self, request):
         return super(EmptyModelAdmin, self).queryset(request).filter(pk__gt=1)
 
+class OldSubscriberAdmin(admin.ModelAdmin):
+    actions = None
+
+temp_storage = FileSystemStorage(tempfile.mkdtemp())
+UPLOAD_TO = os.path.join(temp_storage.location, 'test_upload')
+
+class Gallery(models.Model):
+    name = models.CharField(max_length=100)
+
+class Picture(models.Model):
+    name = models.CharField(max_length=100)
+    image = models.FileField(storage=temp_storage, upload_to='test_upload')
+    gallery = models.ForeignKey(Gallery, related_name="pictures")
+
+class PictureInline(admin.TabularInline):
+    model = Picture
+    extra = 1
+
+class GalleryAdmin(admin.ModelAdmin):
+    inlines = [PictureInline]
+
+class PictureAdmin(admin.ModelAdmin):
+    pass
+
 admin.site.register(Article, ArticleAdmin)
 admin.site.register(CustomArticle, CustomArticleAdmin)
 admin.site.register(Section, save_as=True, inlines=[ArticleInline])
@@ -295,10 +335,14 @@ admin.site.register(Person, PersonAdmin)
 admin.site.register(Persona, PersonaAdmin)
 admin.site.register(Subscriber, SubscriberAdmin)
 admin.site.register(ExternalSubscriber, ExternalSubscriberAdmin)
+admin.site.register(OldSubscriber, OldSubscriberAdmin)
 admin.site.register(Podcast, PodcastAdmin)
+admin.site.register(Vodcast, VodcastAdmin)
 admin.site.register(Parent, ParentAdmin)
 admin.site.register(EmptyModel, EmptyModelAdmin)
 admin.site.register(Fabric, FabricAdmin)
+admin.site.register(Gallery, GalleryAdmin)
+admin.site.register(Picture, PictureAdmin)
 
 # We intentionally register Promo and ChapterXtra1 but not Chapter nor ChapterXtra2.
 # That way we cover all four cases:

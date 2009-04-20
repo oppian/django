@@ -10,9 +10,42 @@ from django.test import TestCase
 from django.core import mail
 from django.core.urlresolvers import reverse
 
-class PasswordResetTest(TestCase):
+class AuthViewsTestCase(TestCase):
+    """
+    Helper base class for all the follow test cases.
+    """
     fixtures = ['authtestdata.json']
     urls = 'django.contrib.auth.urls'
+
+    def setUp(self):
+        self.old_LANGUAGES = settings.LANGUAGES
+        self.old_LANGUAGE_CODE = settings.LANGUAGE_CODE
+        settings.LANGUAGES = (('en', 'English'),)
+        settings.LANGUAGE_CODE = 'en'
+        self.old_TEMPLATE_DIRS = settings.TEMPLATE_DIRS
+        settings.TEMPLATE_DIRS = (
+            os.path.join(
+                os.path.dirname(__file__),
+                'templates'
+            )
+        ,)
+
+    def tearDown(self):
+        settings.LANGUAGES = self.old_LANGUAGES
+        settings.LANGUAGE_CODE = self.old_LANGUAGE_CODE
+        settings.TEMPLATE_DIRS = self.old_TEMPLATE_DIRS
+
+class PasswordResetTest(AuthViewsTestCase):
+
+    def setUp(self):
+        self.old_LANGUAGES = settings.LANGUAGES
+        self.old_LANGUAGE_CODE = settings.LANGUAGE_CODE
+        settings.LANGUAGES = (('en', 'English'),)
+        settings.LANGUAGE_CODE = 'en'
+
+    def tearDown(self):
+        settings.LANGUAGES = self.old_LANGUAGES
+        settings.LANGUAGE_CODE = self.old_LANGUAGE_CODE
 
     def test_email_not_found(self):
         "Error is raised if the provided email address isn't currently registered"
@@ -92,22 +125,7 @@ class PasswordResetTest(TestCase):
         self.assertEquals(response.status_code, 200)
         self.assert_("The two password fields didn&#39;t match" in response.content)
 
-
-class ChangePasswordTest(TestCase):
-    fixtures = ['authtestdata.json']
-    urls = 'django.contrib.auth.urls'
-
-    def setUp(self):
-        self.old_TEMPLATE_DIRS = settings.TEMPLATE_DIRS
-        settings.TEMPLATE_DIRS = (
-            os.path.join(
-                os.path.dirname(__file__),
-                'templates'
-            )
-        ,)
-
-    def tearDown(self):
-        settings.TEMPLATE_DIRS = self.old_TEMPLATE_DIRS
+class ChangePasswordTest(AuthViewsTestCase):
 
     def login(self, password='password'):
         response = self.client.post('/login/', {
@@ -165,16 +183,7 @@ class ChangePasswordTest(TestCase):
         self.fail_login()
         self.login(password='password1')
 
-class LoginTest(TestCase):
-    fixtures = ['authtestdata.json']
-    urls = 'django.contrib.auth.urls'
-
-    def setUp(self):
-        self.old_TEMPLATE_DIRS = settings.TEMPLATE_DIRS
-        settings.TEMPLATE_DIRS = (os.path.join(os.path.dirname(__file__), 'templates'),)
-
-    def tearDown(self):
-        settings.TEMPLATE_DIRS = self.old_TEMPLATE_DIRS
+class LoginTest(AuthViewsTestCase):
 
     def test_current_site_in_context_after_login(self):
         response = self.client.get(reverse('django.contrib.auth.views.login'))
@@ -185,8 +194,7 @@ class LoginTest(TestCase):
         self.assert_(isinstance(response.context['form'], AuthenticationForm), 
                      'Login form is not an AuthenticationForm')
         
-class LogoutTest(TestCase):
-    fixtures = ['authtestdata.json']
+class LogoutTest(AuthViewsTestCase):
     urls = 'django.contrib.auth.tests.urls'
 
     def login(self, password='password'):

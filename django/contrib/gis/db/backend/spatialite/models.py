@@ -15,7 +15,9 @@ class GeometryColumns(models.Model):
     spatial_index_enabled = models.IntegerField()
 
     class Meta:
+        app_label = 'gis'
         db_table = 'geometry_columns'
+        managed = False
 
     @classmethod
     def table_name_col(cls):
@@ -48,6 +50,12 @@ class SpatialRefSys(models.Model):
     ref_sys_name = models.CharField(max_length=256)
     proj4text = models.CharField(max_length=2048)
 
+    @property
+    def wkt(self):
+        from django.contrib.gis.gdal import SpatialReference
+        return SpatialReference(self.proj4text).wkt
+    
     class Meta:
         abstract = True
         db_table = 'spatial_ref_sys'
+        managed = False
