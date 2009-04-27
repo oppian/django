@@ -344,16 +344,34 @@ class ModelForm(BaseModelForm):
 
 def modelform_factory(model, form=ModelForm, fields=None, exclude=None,
                        formfield_callback=lambda f: f.formfield()):
-    # HACK: we should be able to construct a ModelForm without creating
-    # and passing in a temporary inner class
-    class Meta:
-        pass
-    setattr(Meta, 'model', model)
-    setattr(Meta, 'fields', fields)
-    setattr(Meta, 'exclude', exclude)
+    # Create the inner Meta class. FIXME: ideally, we should be able to
+    # construct a ModelForm without creating and passing in a temporary
+    # inner class.
+
+    # Build up a list of attributes that the Meta object will have.
+    attrs = {'model': model}
+    if fields is not None:
+        attrs['fields'] = fields
+    if exclude is not None:
+        attrs['exclude'] = exclude
+
+    # If parent form class already has an inner Meta, the Meta we're
+    # creating needs to inherit from the parent's inner meta.
+    parent = (object,)
+    if hasattr(form, 'Meta'):
+        parent = (form.Meta, object)
+    Meta = type('Meta', parent, attrs)
+
+    # Give this new form class a reasonable name.
     class_name = model.__name__ + 'Form'
-    return ModelFormMetaclass(class_name, (form,), {'Meta': Meta,
-                              'formfield_callback': formfield_callback})
+
+    # Class attributes for the new form class.
+    form_class_attrs = {
+        'Meta': Meta,
+        'formfield_callback': formfield_callback
+    }
+
+    return ModelFormMetaclass(class_name, (form,), form_class_attrs)
 
 
 # ModelFormSets ##############################################################
@@ -388,6 +406,13 @@ class BaseModelFormSet(BaseFormSet):
                 qs = self.queryset
             else:
                 qs = self.model._default_manager.get_query_set()
+
+            # If the queryset isn't already ordered we need to add an
+            # artificial ordering here to make sure that all formsets
+            # constructed from this queryset have the same form order.
+            if not qs.ordered:
+                qs = qs.order_by(self.model._meta.pk.name)
+
             if self.max_num > 0:
                 self._queryset = qs[:self.max_num]
             else:
@@ -617,13 +642,6 @@ def inlineformset_factory(parent_model, model, form=ModelForm,
     # enforce a max_num=1 when the foreign key to the parent model is unique.
     if fk.unique:
         max_num = 1
-    if fields is not None:
-        fields = list(fields)
-        fields.append(fk.name)
-    else:
-        # get all the fields for this model that will be generated.
-        fields = fields_for_model(model, fields, exclude, formfield_callback).keys()
-        fields.append(fk.name)
     kwargs = {
         'form': form,
         'formfield_callback': formfield_callback,
