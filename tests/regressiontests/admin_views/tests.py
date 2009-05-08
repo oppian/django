@@ -6,7 +6,7 @@ from django.core.files import temp as tempfile
 from django.test import TestCase
 from django.contrib.auth.models import User, Permission
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.admin.models import LogEntry
+from django.contrib.admin.models import LogEntry, DELETION
 from django.contrib.admin.sites import LOGIN_FORM_KEY
 from django.contrib.admin.util import quote
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
@@ -16,7 +16,7 @@ from django.utils.html import escape
 from models import (Article, BarAccount, CustomArticle, EmptyModel,
                     ExternalSubscriber, FooAccount, Gallery,
                     ModelWithStringPrimaryKey, Person, Persona, Picture,
-                    Podcast, Section, Subscriber, Vodcast)
+                    Podcast, Section, Subscriber, Vodcast, Language)
 
 try:
     set
@@ -233,6 +233,34 @@ class AdminViewBasicTest(TestCase):
             '<a href="?surface__exact=y">Vertical</a>' in response.content,
             "Changelist filter isn't showing options contained inside a model field 'choices' option named group."
         )
+
+class SaveAsTests(TestCase):
+    fixtures = ['admin-views-users.xml','admin-views-person.xml']
+    
+    def setUp(self):
+        self.client.login(username='super', password='secret')
+
+    def tearDown(self):
+        self.client.logout()
+    
+    def test_save_as_duplication(self):
+        """Ensure save as actually creates a new person"""
+        post_data = {'_saveasnew':'', 'name':'John M', 'gender':1}
+        response = self.client.post('/test_admin/admin/admin_views/person/1/', post_data)
+        self.assertEqual(len(Person.objects.filter(name='John M')), 1)
+        self.assertEqual(len(Person.objects.filter(id=1)), 1)
+    
+    def test_save_as_display(self):
+        """
+        Ensure that 'save as' is displayed when activated and after submitting
+        invalid data aside save_as_new will not show us a form to overwrite the
+        initial model.
+        """
+        response = self.client.get('/test_admin/admin/admin_views/person/1/')
+        self.assert_(response.context['save_as'])
+        post_data = {'_saveasnew':'', 'name':'John M', 'gender':3, 'alive':'checked'}
+        response = self.client.post('/test_admin/admin/admin_views/person/1/', post_data)
+        self.assertEqual(response.context['form_url'], '../add/')
 
 class CustomModelAdminTest(AdminViewBasicTest):
     urlbit = "admin2"
@@ -544,6 +572,9 @@ class AdminViewPermissionsTest(TestCase):
         post = self.client.post('/test_admin/admin/admin_views/article/1/delete/', delete_dict)
         self.assertRedirects(post, '/test_admin/admin/')
         self.failUnlessEqual(Article.objects.all().count(), 2)
+        article_ct = ContentType.objects.get_for_model(Article)
+        logged = LogEntry.objects.get(content_type=article_ct, action_flag=DELETION)
+        self.failUnlessEqual(logged.object_id, u'1')
         self.client.get('/test_admin/admin/logout/')
 
 class AdminViewStringPrimaryKeyTest(TestCase):
@@ -578,6 +609,26 @@ class AdminViewStringPrimaryKeyTest(TestCase):
         response = self.client.get('/test_admin/admin/')
         should_contain = """<a href="admin_views/modelwithstringprimarykey/%s/">%s</a>""" % (quote(self.pk), escape(self.pk))
         self.assertContains(response, should_contain)
+
+    def test_recentactions_without_content_type(self):
+        "If a LogEntry is missing content_type it will not display it in span tag under the hyperlink."
+        response = self.client.get('/test_admin/admin/')
+        should_contain = """<a href="admin_views/modelwithstringprimarykey/%s/">%s</a>""" % (quote(self.pk), escape(self.pk))
+        self.assertContains(response, should_contain)
+        should_contain = "Model with string primary key" # capitalized in Recent Actions
+        self.assertContains(response, should_contain)
+        logentry = LogEntry.objects.get(content_type__name__iexact=should_contain)
+        # http://code.djangoproject.com/ticket/10275
+        # if the log entry doesn't have a content type it should still be
+        # possible to view the Recent Actions part
+        logentry.content_type = None
+        logentry.save()
+
+        counted_presence_before = response.content.count(should_contain)
+        response = self.client.get('/test_admin/admin/')
+        counted_presence_after = response.content.count(should_contain)
+        self.assertEquals(counted_presence_before - 1,
+                          counted_presence_after)
 
     def test_deleteconfirmation_link(self):
         "The link from the delete confirmation page referring back to the changeform of the object should be quoted"
@@ -804,6 +855,11 @@ class AdminViewListEditable(TestCase):
         response = self.client.get('/test_admin/admin/admin_views/vodcast/')
         self.failUnlessEqual(response.status_code, 200)
 
+    def test_custom_pk(self):
+        Language.objects.create(iso='en', name='English', english_name='English')
+        response = self.client.get('/test_admin/admin/admin_views/language/')
+        self.failUnlessEqual(response.status_code, 200)
+
     def test_changelist_input_html(self):
         response = self.client.get('/test_admin/admin/admin_views/person/')
         # 2 inputs per object(the field and the hidden id field) = 6
@@ -864,6 +920,21 @@ class AdminViewListEditable(TestCase):
         self.client.post('/test_admin/admin/admin_views/person/?q=mauchly', data)
 
         self.failUnlessEqual(Person.objects.get(name="John Mauchly").alive, False)
+
+class AdminSearchTest(TestCase):
+    fixtures = ['admin-views-users','multiple-child-classes']
+
+    def setUp(self):
+        self.client.login(username='super', password='secret')
+
+    def tearDown(self):
+        self.client.logout()
+
+    def test_search_on_sibling_models(self):
+        "Check that a search that mentions sibling models"
+        response = self.client.get('/test_admin/admin/admin_views/recommendation/?q=bar')
+        # confirm the search returned 1 object
+        self.assertContains(response, "\n1 recommendation\n")
 
 class AdminInheritedInlinesTest(TestCase):
     fixtures = ['admin-views-users.xml',]
@@ -1003,7 +1074,7 @@ class AdminActionsTest(TestCase):
         }
         response = self.client.post('/test_admin/admin/admin_views/externalsubscriber/', action_data)
         self.failUnlessEqual(response.status_code, 302)
-        
+
     def test_model_without_action(self):
         "Tests a ModelAdmin without any action"
         response = self.client.get('/test_admin/admin/admin_views/oldsubscriber/')
@@ -1012,7 +1083,7 @@ class AdminActionsTest(TestCase):
             '<input type="checkbox" class="action-select"' not in response.content,
             "Found an unexpected action toggle checkboxbox in response"
         )
-        
+
     def test_multiple_actions_form(self):
         """
         Test that actions come from the form whose submit button was pressed (#10618).
@@ -1076,7 +1147,7 @@ class AdminInlineFileUploadTest(TestCase):
 
     def setUp(self):
         self.client.login(username='super', password='secret')
-        
+
         # Set up test Picture and Gallery.
         # These must be set up here instead of in fixtures in order to allow Picture
         # to use a NamedTemporaryFile.
@@ -1095,7 +1166,7 @@ class AdminInlineFileUploadTest(TestCase):
 
     def test_inline_file_upload_edit_validation_error_post(self):
         """
-        Test that inline file uploads correctly display prior data (#10002). 
+        Test that inline file uploads correctly display prior data (#10002).
         """
         post_data = {
             "name": u"Test Gallery",
@@ -1112,4 +1183,3 @@ class AdminInlineFileUploadTest(TestCase):
         }
         response = self.client.post('/test_admin/%s/admin_views/gallery/1/' % self.urlbit, post_data)
         self.failUnless(response._container[0].find("Currently:") > -1)
-

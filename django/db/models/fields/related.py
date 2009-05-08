@@ -155,7 +155,7 @@ class RelatedField(object):
         # get_(next/prev)_by_date work; other lookups are not allowed since that
         # gets messy pretty quick. This is a good candidate for some refactoring
         # in the future.
-        if lookup_type in ['exact', 'gt', 'lt']:
+        if lookup_type in ['exact', 'gt', 'lt', 'gte', 'lte']:
             return [pk_trace(value)]
         if lookup_type in ('range', 'in'):
             return [pk_trace(v) for v in value]
@@ -948,7 +948,10 @@ class ManyToManyField(RelatedField, Field):
         # If initial is passed in, it's a list of related objects, but the
         # MultipleChoiceField takes a list of IDs.
         if defaults.get('initial') is not None:
-            defaults['initial'] = [i._get_pk_val() for i in defaults['initial']]
+            initial = defaults['initial']
+            if callable(initial):
+                initial = initial()
+            defaults['initial'] = [i._get_pk_val() for i in initial]
         return super(ManyToManyField, self).formfield(**defaults)
 
     def db_type(self):
