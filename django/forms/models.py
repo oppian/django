@@ -756,10 +756,13 @@ class BaseInlineFormSet(BaseModelFormSet):
         unique_check = [field for field in unique_check if field != self.fk.name]
         return super(BaseInlineFormSet, self).get_unique_error_message(unique_check)
 
-def _get_foreign_key(parent_model, model, fk_name=None):
+def _get_foreign_key(parent_model, model, fk_name=None, can_fail=False):
     """
-    Finds and returns the ForeignKey from model to parent if there is one.
-    If fk_name is provided, assume it is the name of the ForeignKey field.
+    Finds and returns the ForeignKey from model to parent if there is one
+    (returns None if can_fail is True and no such field exists). If fk_name is
+    provided, assume it is the name of the ForeignKey field. Unles can_fail is
+    True, an exception is raised if there is no ForeignKey from model to
+    parent_model.
     """
     # avoid circular import
     from django.db.models import ForeignKey
@@ -785,6 +788,8 @@ def _get_foreign_key(parent_model, model, fk_name=None):
         if len(fks_to_parent) == 1:
             fk = fks_to_parent[0]
         elif len(fks_to_parent) == 0:
+            if can_fail:
+                return
             raise Exception("%s has no ForeignKey to %s" % (model, parent_model))
         else:
             raise Exception("%s has more than 1 ForeignKey to %s" % (model, parent_model))
@@ -896,7 +901,10 @@ class ModelChoiceField(ChoiceField):
     def __init__(self, queryset, empty_label=u"---------", cache_choices=False,
                  required=True, widget=None, label=None, initial=None,
                  help_text=None, to_field_name=None, *args, **kwargs):
-        self.empty_label = empty_label
+        if required and (initial is not None):
+            self.empty_label = None
+        else:
+            self.empty_label = empty_label
         self.cache_choices = cache_choices
 
         # Call Field instead of ChoiceField __init__() because we don't need
