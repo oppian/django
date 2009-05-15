@@ -612,7 +612,12 @@ class BaseModelFormSet(BaseFormSet):
         for form in self.initial_forms:
             pk_name = self._pk_field.name
             raw_pk_value = form._raw_value(pk_name)
-            pk_value = form.fields[pk_name].clean(raw_pk_value).pk
+
+            # clean() for different types of PK fields can sometimes return
+            # the model instance, and sometimes the PK. Handle either.
+            pk_value = form.fields[pk_name].clean(raw_pk_value)
+            pk_value = getattr(pk_value, 'pk', pk_value)
+
             obj = existing_objects[pk_value]
             if self.can_delete:
                 raw_delete_value = form._raw_value(DELETION_FIELD_NAME)
@@ -698,7 +703,11 @@ class BaseInlineFormSet(BaseModelFormSet):
         self.save_as_new = save_as_new
         # is there a better way to get the object descriptor?
         self.rel_name = RelatedObject(self.fk.rel.to, self.model, self.fk).get_accessor_name()
-        qs = self.model._default_manager.filter(**{self.fk.name: self.instance})
+        if self.fk.rel.field_name == self.fk.rel.to._meta.pk.name:
+            backlink_value = self.instance
+        else:
+            backlink_value = getattr(self.instance, self.fk.rel.field_name)
+        qs = self.model._default_manager.filter(**{self.fk.name: backlink_value})
         super(BaseInlineFormSet, self).__init__(data, files, prefix=prefix,
                                                 queryset=qs)
 
@@ -733,7 +742,8 @@ class BaseInlineFormSet(BaseModelFormSet):
         # Use commit=False so we can assign the parent key afterwards, then
         # save the object.
         obj = form.save(commit=False)
-        setattr(obj, self.fk.get_attname(), self.instance.pk)
+        pk_value = getattr(self.instance, self.fk.rel.field_name)
+        setattr(obj, self.fk.get_attname(), getattr(pk_value, 'pk', pk_value))
         if commit:
             obj.save()
         # form.save_m2m() can be called via the formset later on if commit=False
@@ -748,9 +758,12 @@ class BaseInlineFormSet(BaseModelFormSet):
         else:
             # The foreign key field might not be on the form, so we poke at the
             # Model field to get the label, since we need that for error messages.
-            form.fields[self.fk.name] = InlineForeignKeyField(self.instance,
-                label=getattr(form.fields.get(self.fk.name), 'label', capfirst(self.fk.verbose_name))
-            )
+            kwargs = {
+                'label': getattr(form.fields.get(self.fk.name), 'label', capfirst(self.fk.verbose_name))
+            }
+            if self.fk.rel.field_name != self.fk.rel.to._meta.pk.name:
+                kwargs['to_field'] = self.fk.rel.field_name
+            form.fields[self.fk.name] = InlineForeignKeyField(self.instance, **kwargs)
 
     def get_unique_error_message(self, unique_check):
         unique_check = [field for field in unique_check if field != self.fk.name]
@@ -845,8 +858,12 @@ class InlineForeignKeyField(Field):
     def __init__(self, parent_instance, *args, **kwargs):
         self.parent_instance = parent_instance
         self.pk_field = kwargs.pop("pk_field", False)
+        self.to_field = kwargs.pop("to_field", None)
         if self.parent_instance is not None:
-            kwargs["initial"] = self.parent_instance.pk
+            if self.to_field:
+                kwargs["initial"] = getattr(self.parent_instance, self.to_field)
+            else:
+                kwargs["initial"] = self.parent_instance.pk
         kwargs["required"] = False
         kwargs["widget"] = InlineForeignKeyHiddenInput
         super(InlineForeignKeyField, self).__init__(*args, **kwargs)
@@ -858,7 +875,11 @@ class InlineForeignKeyField(Field):
             # if there is no value act as we did before.
             return self.parent_instance
         # ensure the we compare the values as equal types.
-        if force_unicode(value) != force_unicode(self.parent_instance.pk):
+        if self.to_field:
+            orig = getattr(self.parent_instance, self.to_field)
+        else:
+            orig = self.parent_instance.pk
+        if force_unicode(value) != force_unicode(orig):
             raise ValidationError(self.error_messages['invalid_choice'])
         return self.parent_instance
 
