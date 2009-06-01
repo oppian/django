@@ -200,7 +200,7 @@ Actions that provide intermediate pages
 ---------------------------------------
 
 By default, after an action is performed the user is simply redirected back
-the the original change list page. However, some actions, especially more
+to the original change list page. However, some actions, especially more
 complex ones, will need to return intermediate pages. For example, the
 built-in delete action asks for confirmation before deleting the selected
 objects.
@@ -216,7 +216,7 @@ objects as JSON::
 
     def export_as_json(modeladmin, request, queryset):
         response = HttpResponse(mimetype="text/javascript")
-        serialize.serialize(queryset, stream=response)
+        serializers.serialize("json", queryset, stream=response)
         return response
 
 Generally, something like the above isn't considered a great idea. Most of the

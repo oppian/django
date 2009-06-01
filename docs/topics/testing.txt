@@ -514,7 +514,7 @@ arguments at time of construction:
         If you had an url ``/redirect_me/`` that redirected to ``/next/``, that
         redirected to ``/final/``, this is what you'd see::
 
-            >>> response = c.get('/redirect_me/')
+            >>> response = c.get('/redirect_me/', follow=True)
             >>> response.redirect_chain
             [(u'http://testserver/next/', 302), (u'http://testserver/final/', 302)]
 
@@ -752,7 +752,7 @@ Exceptions
 ~~~~~~~~~~
 
 If you point the test client at a view that raises an exception, that exception
-will be visible in the test case. You can then use a standard ``try...catch``
+will be visible in the test case. You can then use a standard ``try...except``
 block or ``unittest.TestCase.assertRaises()`` to test for exceptions.
 
 The only exceptions that are not visible to the test client are ``Http404``,

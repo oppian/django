@@ -86,7 +86,9 @@ Enter the admin site
 ====================
 
 Now, try logging in. (You created a superuser account in the first part of this
-tutorial, remember?) You should see the Django admin index page:
+tutorial, remember?  If you didn't create one or forgot the password you can 
+:ref:`create another one <topics-auth-creating-superusers>`.) You should see 
+the Django admin index page:
 
 .. image:: _images/admin02t.png
    :alt: Django admin index page
@@ -344,7 +346,7 @@ case of the ``was_published_today`` header, because sorting by the output of
 an arbitrary method is not supported. Also note that the column header for
 ``was_published_today`` is, by default, the name of the method (with
 underscores replaced with spaces). But you can change that by giving that
-method a ``short_description`` attribute::
+method (in ``models.py``) a ``short_description`` attribute::
 
     def was_published_today(self):
         return self.pub_date.date() == datetime.date.today()
